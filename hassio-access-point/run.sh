@@ -243,6 +243,50 @@ if $(bashio::config.true "dhcp"); then
     dnsmasq -C /dnsmasq.conf
 fi
 
+# ====== mDNS REFLECTION (avahi) ======
+# Bridges .local mDNS hostnames between the AP subnet and the main HA network
+# This allows HA to resolve wioo.local (and other .local devices) across subnets
+logger "## Starting avahi mDNS reflector" 1
+
+mkdir -p /var/run/avahi-daemon
+mkdir -p /etc/avahi
+
+cat > /etc/avahi/avahi-daemon.conf << EOF
+[server]
+use-ipv4=yes
+use-ipv6=no
+allow-interfaces=$INTERFACE,$DEFAULT_ROUTE_INTERFACE
+deny-interfaces=lo
+
+[wide-area]
+enable-wide-area=no
+
+[publish]
+disable-publishing=yes
+
+[reflector]
+enable-reflector=yes
+reflect-ipv=no
+
+[rlimits]
+rlimit-core=0
+rlimit-data=4194304
+rlimit-fsize=0
+rlimit-nofile=768
+rlimit-stack=4194304
+rlimit-nproc=3
+EOF
+
+# Start dbus (required by avahi)
+if [ ! -f /var/run/dbus.pid ]; then
+    dbus-daemon --system --fork
+    sleep 1
+fi
+
+avahi-daemon --daemonize --no-chroot
+logger "## avahi mDNS reflector started on interfaces: $INTERFACE <-> $DEFAULT_ROUTE_INTERFACE" 0
+# ====== END mDNS REFLECTION ======
+
 logger "## Starting hostapd daemon" 1
 # If debug level is greater than 1, start hostapd in debug mode
 if [ $DEBUG -gt 1 ]; then
