@@ -245,7 +245,7 @@ fi
 
 # ====== mDNS REFLECTION (avahi) ======
 # Bridges .local mDNS hostnames between the AP subnet and the main HA network
-# This allows HA to resolve wioo.local (and other .local devices) across subnets
+# avahi runs WITHOUT dbus: HA OS owns the system dbus socket, we must not touch it
 logger "## Starting avahi mDNS reflector" 1
 
 mkdir -p /var/run/avahi-daemon
@@ -257,6 +257,7 @@ use-ipv4=yes
 use-ipv6=no
 allow-interfaces=$INTERFACE,$DEFAULT_ROUTE_INTERFACE
 deny-interfaces=lo
+enable-dbus=no
 
 [wide-area]
 enable-wide-area=no
@@ -277,14 +278,12 @@ rlimit-stack=4194304
 rlimit-nproc=3
 EOF
 
-# Start dbus (required by avahi)
-if [ ! -f /var/run/dbus.pid ]; then
-    dbus-daemon --system --fork
-    sleep 1
+avahi-daemon --daemonize --no-chroot --no-drop-root
+if [ $? -eq 0 ]; then
+    logger "## avahi mDNS reflector started: $INTERFACE <-> $DEFAULT_ROUTE_INTERFACE" 0
+else
+    logger "## WARNING: avahi failed to start. mDNS reflection unavailable." 0
 fi
-
-avahi-daemon --daemonize --no-chroot
-logger "## avahi mDNS reflector started on interfaces: $INTERFACE <-> $DEFAULT_ROUTE_INTERFACE" 0
 # ====== END mDNS REFLECTION ======
 
 logger "## Starting hostapd daemon" 1
